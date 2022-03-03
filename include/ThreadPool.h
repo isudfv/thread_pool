@@ -14,7 +14,8 @@
 class ThreadPool {
 private:
     bool _shutdown;
-    ConQueue<std::function<void()>> _q;
+    std::queue<std::function<void()>> _q; // 线程获取任务时加了锁，所以不需要线程安全的队列
+//    ConQueue<std::function<void()>> _q;
     std::vector<std::jthread> _threads;
     std::mutex _mutex;
     std::condition_variable _cv;
@@ -29,19 +30,24 @@ private:
         void operator () () {
 //            std::function<void ()> func;
 
+            bool success = false;
             while (!_pool->_shutdown) {
-                std::unique_lock<std::mutex> lock(_pool->_mutex);
+                std::function<void()> func;
+                {
+                    std::unique_lock<std::mutex> lock(_pool->_mutex); // 单个线程获取任务时加锁
 
-                if (_pool->_q.empty()){
-                    std::cout << "blocked\n";
-                    _pool->_cv.wait(lock);
-                }
+                    if (_pool->_q.empty()){
+                        std::cout << "blocked\n";
+                        _pool->_cv.wait(lock);
+                    }
 
-                if (!_pool->_q.empty()) {
-                    auto func = _pool->_q.front();
+                    func = _pool->_q.front();
                     _pool->_q.pop();
-                    func();
+                    success = true;
                 }
+
+                if (success)
+                    func();
             }
         }
     };
@@ -51,6 +57,7 @@ public:
         _threads.resize(_n_threads);
 //        for (int i = 0; i < _threads.size(); ++ i)
         for (auto & p : _threads) {
+            // 初始化线程，任务队列目前为空，自然阻塞
             p = std::jthread(ThreadWorker(this));
         }
     }
@@ -65,23 +72,29 @@ public:
 
     void shutdown() {
         _shutdown = true;
+        // 唤醒并 join 所有线程
         _cv.notify_all();
 
+        for (auto &p : _threads) {
+            if (p.joinable())
+                p.join();
+        }
         //todo join
     }
 
     template<typename F, typename ...Args>
     auto submit(F &&f, Args &&...args) -> std::future<decltype(f(args...))> {
+        // 包装函数及其参数
         std::function<decltype(f(args...))()> func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-
+        // 用 std::packaged_task 封装任务以异步操作结果
         auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
-
+        // wrapper是为了统一调用 func()
         std::function<void ()> wrapper_func = [task_ptr] {
             (*task_ptr)();
         };
-
+        // 添加到任务队列
         _q.push(wrapper_func);
-
+        // 唤醒一个线程
         _cv.notify_one();
 
         return task_ptr->get_future();

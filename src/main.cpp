@@ -5,67 +5,47 @@
 #include <filesystem>
 #include "ConQueue.h"
 #include "md5.h"
-//#include "ThreadPool.h"
-#include "thread_pool.h"
+#include "ThreadPool.h"
+//#include "thread_pool.h"
 #include <fmt/core.h>
 #include <fmt/chrono.h>
 
 int main() {
+    using namespace std::literals;
     namespace fs = std::filesystem;
     std::queue<std::string> files;
-    for (auto & p : fs::directory_iterator("E:/")) {
+    for (auto & p : fs::directory_iterator("C:/Users/isudfv/Pictures/Sono.Bisque.Doll.wa.Koi.wo.Suru.2022.Crunchyroll.WEB-DL.1080p.x264.AAC-HDCTV")) {
         if (p.is_regular_file() && p.file_size() < 10 * 1024 * 1024 * 1024ll) {
             files.push(p.path().string());
         }
     }
 
-
-/*
-    ConQueue<int> q;
-//    std::queue<int> q;
-    std::random_device rd;
-    std::mt19937 mt(rd());
-    std::uniform_int_distribution dist(-10000, 10000);
-    auto call = [&]() {
-        q.push(dist(mt));
-//        std::cout << q.front() << std::endl;
-        auto get = q.front();
-        q.pop();
-        printf("%d\n", get);
-    };
-*/
-    auto call = [&] {
+    auto call = [&files] {
         auto p = files.front();
         files.pop();
         fmt::print("{}\n", p);
-        auto op = std::chrono::high_resolution_clock::now();
-        fmt::print("md5file: {}\n", md5file(p.c_str()).c_str());
-        auto ed = std::chrono::high_resolution_clock::now();
-        fmt::print("file took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
-//        std::cout << std::chrono::duration_cast<std::chrono::seconds>(ed - op).count();
-    };
-//    std::jthread jt(call);
 
+        auto op = std::chrono::high_resolution_clock::now();
+        fmt::print("md5: {}\n", md5file(p.c_str()).c_str());
+        auto ed = std::chrono::high_resolution_clock::now();
+
+        fmt::print("file took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+    };
+
+    auto op = std::chrono::high_resolution_clock::now();
+
+//    ThreadPool tp(2);
     ThreadPool tp(4);
-//    ThreadPool tp(4);
-    tp.init();
-/*
+
+//    std::this_thread::sleep_for(2s);
     while (!files.empty()) {
+//        call();
         auto future = tp.submit(call);
-        future.get();
+//        future.get();
     }
-*/
-/*
-    std::vector<std::thread> n;
-    n.reserve(100);
-    for (int i = 0; i < 1; ++ i) {
-        n.emplace_back(call);
-    }
-    for (auto &i : n) {
-        i.join();
-    }
-*/
-//    for (auto &p : n)
-//        p.join();
+    tp.shutdown();
+    auto ed = std::chrono::high_resolution_clock::now();
+    fmt::print("all took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+
     return 0;
 }

@@ -91,7 +91,7 @@ private:
                     // 如果任务队列为空，阻塞当前线程
                     if (m_pool->m_queue.empty())
                     {
-//                        std::cout << m_id << " blocked\n";
+                        std::cout << m_id << " blocked\n";
                         m_pool->m_conditional_lock.wait(lock); // 等待条件变量通知，开启线程
                     }
 
@@ -100,8 +100,13 @@ private:
                 }
 
                 // 如果成功取出，执行工作函数
-                if (dequeued)
+                if (dequeued){
                     func();
+//                    std::cout << "working ... \n";
+//                    using namespace std::literals;
+//                    std::this_thread::sleep_for(5s);
+                }
+
             }
         }
     };
