@@ -12,16 +12,17 @@
 int main() {
     using namespace std::literals;
     namespace fs = std::filesystem;
-    std::queue<std::string> files;
+//    std::queue<std::string> files;
+    std::vector<std::string> files;
+    fs::path path("C:/Users/isudfv/Pictures/files");
     auto op = std::chrono::high_resolution_clock::now();
-    for (auto &p: fs::directory_iterator(
-            "C:/Users/isudfv/Pictures/files")) {
-        if (p.is_regular_file() && p.file_size() < 10 * 1024 * 1024 * 1024ll) {
-            files.push(p.path().string());
-        }
+    for (auto &p: fs::directory_iterator(path)) {
+        files.push_back(p.path().string());
     }
     auto ed = std::chrono::high_resolution_clock::now();
-    fmt::print("queue took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+//    fmt::print("vector took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+    fmt::print("vector took {:.2f}s\n",
+               std::chrono::duration_cast<std::chrono::milliseconds>(ed - op).count() / 1000.0);
 
     auto call = [](const std::string &name) {
         auto op = std::chrono::high_resolution_clock::now();
@@ -40,9 +41,10 @@ int main() {
 
     std::vector<std::future<decltype(call(""))>> futures;
     futures.reserve(files.size());
-    while (!files.empty()) {
-        auto name = files.front();
-        files.pop();
+//    while (!files.empty()) {
+    for (auto &&name: files) {
+//        auto name = files.front();
+//        files.pop();
         futures.emplace_back(tp.submit(call, name));
 //        future.get();
     }
@@ -53,7 +55,8 @@ int main() {
 //    std::this_thread::sleep_for(1s);
     tp.shutdown();
     ed = std::chrono::high_resolution_clock::now();
-    fmt::print("16 threads md5 took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+    fmt::print("16 threads md5 took {:.2f}s\n",
+               std::chrono::duration_cast<std::chrono::milliseconds>(ed - op).count() / 1000.0);
 
     return 0;
 }
