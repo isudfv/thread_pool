@@ -96,9 +96,12 @@ public:
         };
 */
         // 添加到任务队列，用 lambda 替换 wrapper
-        _q.emplace([task_ptr] {
-            (*task_ptr)();
-        });
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            _q.emplace([task_ptr] {
+                (*task_ptr)();
+            });
+        }
 //        _q.push(wrapper_func);
         // 唤醒一个线程
         _cv.notify_one();
@@ -135,8 +138,8 @@ public:
         return future;
     }
 
-};
 */
+};
 
 
 #endif //THREAD_POOL_THREADPOOL_H
