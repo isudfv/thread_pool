@@ -11,6 +11,7 @@
 #include <future>
 #include <utility>
 #include <memory>
+#include <fmt/core.h>
 
 class ThreadPool {
 private:
@@ -23,10 +24,10 @@ private:
 
     class ThreadWorker {
     private:
-//        int _id;
+        int _id;
         ThreadPool *_pool;
     public:
-        explicit ThreadWorker(ThreadPool *pool/*, const int id*/) : _pool(pool)/*, _id(id)*/ {}
+        explicit ThreadWorker(ThreadPool *pool, const int id) : _pool(pool), _id(id) {}
 
         void operator()() {
 //            std::function<void ()> func;
@@ -38,13 +39,16 @@ private:
                     std::unique_lock<std::mutex> lock(_pool->_mutex); // 单个线程获取任务时加锁
 
                     if (_pool->_q.empty()) {
-                        std::cout << "blocked\n";
+                        fmt::print("blocked\n");
                         _pool->_cv.wait(lock);
                     }
 
-                    func = _pool->_q.front();
-                    _pool->_q.pop();
-                    success = true;
+                    success = false;
+                    if (!_pool->_q.empty()){
+                        func = _pool->_q.front();
+                        _pool->_q.pop();
+                        success = true;
+                    }
                 }
 
                 if (success)
@@ -56,10 +60,11 @@ private:
 public:
     explicit ThreadPool(const int _n_threads) : _shutdown(false) {
         _threads.resize(_n_threads);
-//        for (int i = 0; i < _threads.size(); ++ i)
-        for (auto &p: _threads) {
+        for (int i = 0; i < _threads.size(); ++i) {
+//        for (auto &p: _threads) {
             // 初始化线程，任务队列目前为空，自然阻塞
-            p = std::jthread(ThreadWorker(this));
+//            p = std::jthread(ThreadWorker(this, 0));
+            _threads[i] = std::jthread(ThreadWorker(this, i));
         }
     }
 
@@ -72,9 +77,13 @@ public:
     ThreadPool &operator=(ThreadPool &&) = delete;
 
     void shutdown() {
+        // wait 1ms to insure every thread is blocked
+        using namespace std::literals;
+        std::this_thread::sleep_for(1ms);
         _shutdown = true;
         // 唤醒并 join 所有线程
         _cv.notify_all();
+        fmt::print("notify all\n");
 
         for (auto &p: _threads) {
             if (p.joinable())
@@ -98,9 +107,11 @@ public:
         // 添加到任务队列，用 lambda 替换 wrapper
         {
             std::unique_lock<std::mutex> lock(_mutex);
+//            fmt::print("queue size {}\n", this->_q.size());
             _q.emplace([task_ptr] {
                 (*task_ptr)();
             });
+//            fmt::print("queue size {}\n", this->_q.size());
         }
 //        _q.push(wrapper_func);
         // 唤醒一个线程

@@ -19,22 +19,15 @@ int main() {
             files.push(p.path().string());
         }
     }
-    std::mutex m;
-//    std::condition_variable cv;
 
-    auto call = [&files, &m] {
-        std::string p;
-        {
-            std::unique_lock<std::mutex>(m);
-            p = files.front();
-            files.pop();
-            fmt::print("{}\n", p);
-        }
+    auto call = [] (const std::string &name) {
         auto op = std::chrono::high_resolution_clock::now();
-        fmt::print("md5: {}\n", md5file(p.c_str()).c_str());
+        auto md5 = fmt::format("{}", md5file(name.c_str()).c_str());
         auto ed = std::chrono::high_resolution_clock::now();
 
-        fmt::print("file took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+        return std::make_tuple(name.substr(name.rfind('\\') + 1),
+                               md5,
+                               std::chrono::duration_cast<std::chrono::seconds>(ed - op));
     };
 
     auto op = std::chrono::high_resolution_clock::now();
@@ -42,12 +35,18 @@ int main() {
 //    ThreadPool tp(2);
     ThreadPool tp(4);
 
-//    std::this_thread::sleep_for(2s);
+    std::vector<std::future<decltype(call(""))>> futures;
     while (!files.empty()) {
-//        call();
-        auto future = tp.submit(call);
+        auto name = files.front();
+        files.pop();
+        futures.emplace_back(tp.submit(call, name));
 //        future.get();
     }
+    for (auto  &f : futures) {
+        auto [name, md5, time] = f.get();
+        fmt::print("name: {}\nmd5: {}\ntook: {}\n", name, md5, time);
+    }
+//    std::this_thread::sleep_for(1s);
     tp.shutdown();
     auto ed = std::chrono::high_resolution_clock::now();
     fmt::print("all took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
