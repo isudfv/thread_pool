@@ -39,7 +39,7 @@ private:
                     std::unique_lock<std::mutex> lock(_pool->_mutex); // 单个线程获取任务时加锁
 
                     if (_pool->_q.empty()) {
-                        fmt::print("blocked\n");
+//                        fmt::print("blocked\n");
                         _pool->_cv.wait(lock);
                     }
 
@@ -83,7 +83,7 @@ public:
         _shutdown = true;
         // 唤醒并 join 所有线程
         _cv.notify_all();
-        fmt::print("notify all\n");
+//        fmt::print("notify all\n");
 
         for (auto &p: _threads) {
             if (p.joinable())

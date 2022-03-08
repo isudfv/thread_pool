@@ -13,14 +13,17 @@ int main() {
     using namespace std::literals;
     namespace fs = std::filesystem;
     std::queue<std::string> files;
+    auto op = std::chrono::high_resolution_clock::now();
     for (auto &p: fs::directory_iterator(
-            "C:/Users/isudfv/Pictures/Sono.Bisque.Doll.wa.Koi.wo.Suru.2022.Crunchyroll.WEB-DL.1080p.x264.AAC-HDCTV")) {
+            "C:/Users/isudfv/Pictures/files")) {
         if (p.is_regular_file() && p.file_size() < 10 * 1024 * 1024 * 1024ll) {
             files.push(p.path().string());
         }
     }
+    auto ed = std::chrono::high_resolution_clock::now();
+    fmt::print("queue took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
 
-    auto call = [] (const std::string &name) {
+    auto call = [](const std::string &name) {
         auto op = std::chrono::high_resolution_clock::now();
         auto md5 = fmt::format("{}", md5file(name.c_str()).c_str());
         auto ed = std::chrono::high_resolution_clock::now();
@@ -30,26 +33,27 @@ int main() {
                                std::chrono::duration_cast<std::chrono::seconds>(ed - op));
     };
 
-    auto op = std::chrono::high_resolution_clock::now();
+    op = std::chrono::high_resolution_clock::now();
 
 //    ThreadPool tp(2);
-    ThreadPool tp(4);
+    ThreadPool tp(16);
 
     std::vector<std::future<decltype(call(""))>> futures;
+    futures.reserve(files.size());
     while (!files.empty()) {
         auto name = files.front();
         files.pop();
         futures.emplace_back(tp.submit(call, name));
 //        future.get();
     }
-    for (auto  &f : futures) {
-        auto [name, md5, time] = f.get();
-        fmt::print("name: {}\nmd5: {}\ntook: {}\n", name, md5, time);
+    for (auto &f: futures) {
+        auto[name, md5, time] = f.get();
+//        fmt::print("name: {}\nmd5:  {}\ntook: {}\n", name, md5, time);
     }
 //    std::this_thread::sleep_for(1s);
     tp.shutdown();
-    auto ed = std::chrono::high_resolution_clock::now();
-    fmt::print("all took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
+    ed = std::chrono::high_resolution_clock::now();
+    fmt::print("16 threads md5 took {}\n", std::chrono::duration_cast<std::chrono::seconds>(ed - op));
 
     return 0;
 }
